@@ -26,7 +26,7 @@ const C = {
 };
 
 // ---------- 設定（存在 iCloud 的 Scriptable 資料夾，App 與小工具共用；在 App 裡執行腳本即可修改） ----------
-const VERSION = "2026.11.27.6";
+const VERSION = "2026.11.27.7";
 const REPO = "zeuikli/claude-usage-widget";
 const SETTINGS_PATH = fm.joinPath(fm.documentsDirectory(), "claude-usage-settings.json");
 const STATE_PATH = fm.joinPath(fm.documentsDirectory(), "claude-usage-state.json");
@@ -40,6 +40,7 @@ const DEFAULTS = {
   weeklyReminder: false,   // 每週額度超過門檻時建一則提醒事項
   calendarReset: false,    // 每週額度重置時間寫進行事曆
   checkUpdates: true,      // 每 12 小時查一次 GitHub 有沒有新版
+  refreshButton: true,     // 標題列右邊的「↻」：點了在主畫面直接重畫（iOS 17 以上）
 };
 function readJSON(p) {
   try { return fm.fileExists(p) ? JSON.parse(fm.readString(p)) || {} : {}; } catch (e) { return {}; }
@@ -151,6 +152,12 @@ function header(w, d, title) {
   label(h, title, S(12, 14), C.text, "bold");
   h.addSpacer();
   if (d) ageLabel(h, d, S(10, 11));
+  // Tapping ↻ reloads the widget in place (an interactive control, iOS 17+), so you need not open Scriptable.
+  // Older Scriptable versions lack the method, so check before calling.
+  if (SETTINGS.refreshButton && typeof h.addRefreshButton === "function") {
+    h.addSpacer(4);
+    h.addRefreshButton("↻");
+  }
   return h;
 }
 // Live date text: iOS redraws it every second on its own, so it stays right between widget refreshes.
@@ -1465,6 +1472,7 @@ async function settingsPage(data) {
     });
     header("外觀");
     toggle("transparent", "透明背景", "顯示桌布（iOS 27.2 以上才有效）");
+    toggle("refreshButton", "標題列顯示刷新按鈕 ↻", "點一下在主畫面直接重畫，不必打開 Scriptable（iOS 17 以上）");
     action("主題：" + ({ default: "預設", warm: "暖橘漸層", night: "夜空" }[SETTINGS.theme] || "預設") + "（點一下切換）", null, () => {
       const order = ["default", "warm", "night"]; SETTINGS.theme = order[(order.indexOf(SETTINGS.theme) + 1) % order.length]; save(); });
     header("提醒事項與行事曆");

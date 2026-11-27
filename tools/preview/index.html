@@ -77,6 +77,8 @@ class WStack { constructor() { this.items = []; this.dir = "h"; this.center = fa
   addDate(d) { const x = new WDate(d); this.items.push(x); return x; }
   addImage(i) { const x = new WImage(i); this.items.push(x); return x; }
   addSpacer(n) { this.items.push({ spacer: n ?? null }); return {}; }
+  // Interactive refresh button (iOS 17+): drawn as a small tinted glyph; the real look is the system's.
+  addRefreshButton(t) { const x = new WText(String(t)); x.font = Font.boldSystemFont(12); x.textColor = new Color("#007aff"); this.items.push(x); }
   layoutVertically() { this.dir = "v"; } layoutHorizontally() { this.dir = "h"; }
   centerAlignContent() { this.center = true; } topAlignContent() { this.center = false; } bottomAlignContent() {}
   setPadding(t, l, b, r) { this.pad = [t, l, b, r]; } }
