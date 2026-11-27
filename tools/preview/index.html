@@ -81,6 +81,7 @@ class WStack { constructor() { this.items = []; this.dir = "h"; this.center = fa
   addRefreshButton(t) { const x = new WText(String(t)); x.font = Font.boldSystemFont(12); x.textColor = new Color("#007aff"); this.items.push(x); }
   layoutVertically() { this.dir = "v"; } layoutHorizontally() { this.dir = "h"; }
   centerAlignContent() { this.center = true; } topAlignContent() { this.center = false; } bottomAlignContent() {}
+  setAction() {}
   setPadding(t, l, b, r) { this.pad = [t, l, b, r]; } }
 class ListWidget extends WStack { constructor() { super(); this.dir = "v"; this.pad = [16, 16, 16, 16]; } presentLarge() {} presentMedium() {} presentSmall() {} }
 class DateFormatter { string(d) { const p = n => String(n).padStart(2, "0");
