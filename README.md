@@ -20,7 +20,7 @@ claude /usage 的方案額度       ─┤
 > 請幫我安裝 https://github.com/zeuikli/claude-usage-widget 這個 iPhone 小工具：照 repo 裡 CLAUDE.md 的步驟在這台 Mac 設定好、跑 doctor.sh 驗證，再帶我完成 iPhone 上的步驟。
 
 Claude 會：檢查環境 → 問你兩個選項（插電時是否保持清醒、是否要心跳）→ 安裝 → 用 `doctor.sh` 驗證 →
-告訴你 iPhone 上剩下的 4 步（安裝 Scriptable、加小工具、選腳本、填參數）。iPhone 的部分 Apple 不允許程式代勞，需要你自己點。
+告訴你 iPhone 上剩下的 3 步（安裝 Scriptable、加小工具、從 Script 清單選頁面）。iPhone 的部分 Apple 不允許程式代勞，需要你自己點。
 
 之後想改版面，也可以直接跟 Claude 說，例如「把小克改成藍色」「大尺寸用量頁加一張快取圖」——它會先用預覽器給你看，確認後再更新到手機。
 
@@ -28,29 +28,29 @@ Claude 會：檢查環境 → 問你兩個選項（插電時是否保持清醒�
 
 1. 下載：`git clone https://github.com/zeuikli/claude-usage-widget`，或按 Code → Download ZIP 解壓縮。
 2. Mac：在資料夾裡依序執行 `bash doctor.sh --pre`、`bash install.sh`、`bash doctor.sh --wait`（全部 `[OK]` 就完成）。
-3. iPhone：安裝 Scriptable，加一個 Scriptable 小工具，Script 直接選想看的頁面（例如「Claude Token 用量・速度」），Parameter 不用填。
+3. iPhone：安裝 Scriptable，加一個 Scriptable 小工具，Script 直接選想看的頁面（例如「Claude Token 用量・速度」）。
 
 ## 會看到什麼
 
-小工具有九頁，在「編輯小工具」的 **Script** 清單直接選：「Claude Token 用量」是用量頁，其他頁是「Claude Token 用量・<頁名>」（Mac 會自動放好這 8 份頁面腳本，內容與主腳本相同，只是依名稱決定頁面）。也可以照舊用主腳本加 Parameter 填下表的參數，有填 Parameter 時以它為準。每頁都有小、中、大三種尺寸。不想要頁面腳本可在 LaunchAgent 加環境變數 `USAGE_WIDGET_PAGE_SCRIPTS=0`。
+小工具有九頁，在「編輯小工具」的 **Script** 清單直接選：「Claude Token 用量」是用量頁，其他頁是「Claude Token 用量・<頁名>」（Mac 會自動放好這 8 份頁面腳本，內容與主腳本相同，只是依名稱決定頁面），不需要填 Parameter。每頁都有小、中、大三種尺寸。以前在 Parameter 填過頁名的小工具照樣有效，不必改。不想要頁面腳本可在 LaunchAgent 加環境變數 `USAGE_WIDGET_PAGE_SCRIPTS=0`。
 
-| 參數 | 頁面 | 內容 |
+| Script 名稱 | 頁面 | 內容 |
 | --- | --- | --- |
-| （留空） | 用量 | 近 30 天實際使用、快取、今天、每日長條圖、5 小時與每週額度 |
-| 趣味 | 趣味統計 | 連續使用天數、最常用的時段、快取省下多少（依 API 定價估算）、最忙的一天 |
-| 更多 | 花絮 | 工具呼叫次數與排行、對話數、夜貓指數、最長的對話、換算成幾本書 |
-| 狀態 | 工作狀態 | 哪些 session 在執行、等你回答、有新回覆；心跳與額度 |
-| 寵物 | 小克 | 一隻跟著 session 狀態換表情的小寵物；體力＝5 小時額度、飽足＝今天用量、天線＝Remote Control |
-| 額度 | 方案額度 | 圓環儀表、即時倒數到重置、照目前速度重置前會用到多少 |
-| 日曆 | 使用日曆 | 半年熱力圖（像 GitHub 的貢獻圖）、目前與最長連續天數、最忙的一週 |
-| 速度 | 各模型 tok/s | 生成速度、等第一個字的時間、思考與工具輸入速度（近 30 天中位數） |
-| 洞察 | 背後的數據 | 你說一句 Claude 回幾次、思考占輸出多少、工具成功率、子代理用的模型、自動核准與壓縮次數、Claude Code 版本 |
+| Claude Token 用量 | 用量 | 近 30 天實際使用、快取、今天、每日長條圖、5 小時與每週額度 |
+| Claude Token 用量・趣味 | 趣味統計 | 連續使用天數、最常用的時段、快取省下多少（依 API 定價估算）、最忙的一天 |
+| Claude Token 用量・更多 | 花絮 | 工具呼叫次數與排行、對話數、夜貓指數、最長的對話、換算成幾本書 |
+| Claude Token 用量・狀態 | 工作狀態 | 哪些 session 在執行、等你回答、有新回覆；心跳與額度 |
+| Claude Token 用量・寵物 | 小克 | 一隻跟著 session 狀態換表情的小寵物；體力＝5 小時額度、飽足＝今天用量、天線＝Remote Control |
+| Claude Token 用量・額度 | 方案額度 | 圓環儀表、即時倒數到重置、照目前速度重置前會用到多少 |
+| Claude Token 用量・日曆 | 使用日曆 | 半年熱力圖（像 GitHub 的貢獻圖）、目前與最長連續天數、最忙的一週 |
+| Claude Token 用量・速度 | 各模型 tok/s | 生成速度、等第一個字的時間、思考與工具輸入速度（近 30 天中位數） |
+| Claude Token 用量・洞察 | 背後的數據 | 你說一句 Claude 回幾次、思考占輸出多少、工具成功率、子代理用的模型、自動核准與壓縮次數、Claude Code 版本 |
 
 另外還有**鎖定畫面小工具**（圓形、長方形、單行）與 **Siri 語音摘要**，見下方。
 
 以下是 9 頁 × 3 種尺寸的模擬圖（示範資料，非真實帳號）。實機字型寬度會略有不同。
 
-### 用量（參數留空）
+### 用量
 
 | 小 | 中 | 大 |
 | :-: | :-: | :-: |
@@ -134,7 +134,7 @@ iPhone 實機（中尺寸）：標題列右邊的 ↻ 表示整條標題列可�
 
 圓形是 5 小時額度圓環（有 session 等你回應時下方會寫「等你 N」）；長方形多了即時倒數與每週額度；單行是一句話摘要。
 iOS 會依鎖定畫面配色自動上色，所以實際顏色跟著你的桌布。加法：長按鎖定畫面 → 自訂 → 鎖定畫面 → 點小工具區 → Scriptable →
-選樣式 → 點它選「Claude Token 用量」。鎖定畫面不分頁面，參數可以留空。
+選樣式 → 點它選「Claude Token 用量」。鎖定畫面不分頁面。
 
 ### Siri 語音摘要
 
@@ -218,7 +218,7 @@ launchctl kickstart -k gui/$(id -u)/claude-usage-widget.export
 
 1. 打開 Scriptable，等「Claude Token 用量」出現在腳本清單（iCloud 同步可能要一兩分鐘；如果安裝 Mac 端時還沒裝 Scriptable，背景匯出會在 5 分鐘內自動補上腳本）。點一下執行，可預覽每一頁。
 2. 長按主畫面空白處 → 左上「＋」→ 搜尋 Scriptable → 選尺寸 → 加入。
-3. 長按新的小工具 → 編輯小工具：Script 選想看的頁面——「Claude Token 用量」（用量）或「Claude Token 用量・速度」等，Parameter 留空。
+3. 長按新的小工具 → 編輯小工具：Script 選想看的頁面——「Claude Token 用量」（用量）或「Claude Token 用量・速度」等。
 4. 想多頁，就加多個小工具，或疊成「智慧型堆疊」上下滑。
 
 選用：讓資料更常更新——「捷徑」→ 自動化 →「＋」→ App → 選常開的 App、勾「已關閉」、「立即執行」→
