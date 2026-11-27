@@ -56,6 +56,10 @@ Claude 會：檢查環境 → 問你兩個選項（插電時是否保持清醒�
 | :-: | :-: | :-: |
 | <img src="docs/images/widgets/1-usage-small.png" width="170" alt="用量・小"> | <img src="docs/images/widgets/1-usage-medium.png" width="340" alt="用量・中"> | <img src="docs/images/widgets/1-usage-large.png" width="340" alt="用量・大"> |
 
+iPhone 實機（中尺寸）：標題列右邊的 ↻ 表示整條標題列可以點，點了就在主畫面重新整理，不必打開 Scriptable（iOS 17 以上）。
+
+<img src="docs/images/app/home-medium-refresh.png" width="435" alt="iPhone 實機的用量頁中尺寸小工具，標題列右邊有重新整理圖示">
+
 ### 趣味
 
 | 小 | 中 | 大 |
