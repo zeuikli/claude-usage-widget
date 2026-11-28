@@ -1452,6 +1452,11 @@
     3180.9,
     26
    ]
-  ]
+  ],
+  "prices": {
+   "source": "official",
+   "fetched": "2026-11-27T01:10:00+08:00",
+   "error": null
+  }
  }
 }

@@ -26,7 +26,7 @@ const C = {
 };
 
 // ---------- 設定（存在 iCloud 的 Scriptable 資料夾，App 與小工具共用；在 App 裡執行腳本即可修改） ----------
-const VERSION = "2026.11.28";
+const VERSION = "2026.11.28.1";
 const REPO = "zeuikli/claude-usage-widget";
 const SETTINGS_PATH = fm.joinPath(fm.documentsDirectory(), "claude-usage-settings.json");
 const STATE_PATH = fm.joinPath(fm.documentsDirectory(), "claude-usage-state.json");
@@ -1307,6 +1307,9 @@ function costPage(w, d, family) {
   const today = c.daily[c.daily.length - 1][1];
   const month = (c.months || []).find(x => x[0] === c.daily[c.daily.length - 1][0].slice(0, 7));
   const vals = c.daily.map(x => x[1]);
+  // Prices come from Anthropic's pricing page (read by the Mac at most once a day), else the built-in table.
+  const priceDate = c.prices && c.prices.fetched ? md(c.prices.fetched.slice(0, 10)) : "";
+  const priceNote = priceDate ? "API 牌價 " + priceDate + " 更新" : "內建 API 牌價";
   if (family === "small") {
     header(w, d, "費用");
     w.addSpacer(6);
@@ -1316,7 +1319,7 @@ function costPage(w, d, family) {
     w.addSpacer();
     addImg(w, bars(vals, C.actual, 146, 22, vals.length - 1), 146, 22);
     w.addSpacer(4);
-    label(w, "今天 " + usd(today) + "・依 API 牌價", 9, C.dim);
+    label(w, "今天 " + usd(today) + "・" + priceNote, 9, C.dim);
     return;
   }
   const cw = contentWidth();
@@ -1332,12 +1335,12 @@ function costPage(w, d, family) {
     w.addSpacer(6);
     addImg(w, labeledBars(vals, C.actual, cw, 26, ticks), cw, 38);
     w.addSpacer(3);
-    label(w, "依 API 牌價換算；訂閱方案每月 $" + plan + "，不按 token 計費", 9, C.dim);
+    label(w, priceNote + "；訂閱方案每月 $" + plan + "，不按 token 計費", 9, C.dim);
     w.addSpacer();
     return;
   }
   w.addSpacer(12);
-  label(w, "每日估價（依 API 牌價；訂閱不按 token 計費）", 12, C.dim, "bold");
+  label(w, "每日估價（" + priceNote + "；訂閱不按 token 計費）", 12, C.dim, "bold");
   w.addSpacer(5);
   addImg(w, labeledBars(vals, C.actual, cw, 32, ticks), cw, 44);
   w.addSpacer(8);

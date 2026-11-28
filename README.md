@@ -138,7 +138,13 @@ iPhone 實機（中尺寸）：標題列右邊的 ↻ 表示整條標題列可�
 所以用近 30 天的 1 小時寫入比例估。比較的訂閱月費在設定頁切換（Pro $20／Max $100／Max $200，預設 $100）。
 
 這是「如果改用 API 付費要付多少」的估算，不是實際帳單：訂閱只收月費，用量看 5 小時與每週額度。只算這台 Mac 上 Claude Code 的紀錄，
-claude.ai 網頁、手機 App 與其他電腦的用量不在內。價格表在 `mac/export_usage.py` 的 `PRICES`，調價時要跟著改。
+claude.ai 網頁、手機 App 與其他電腦的用量不在內。
+
+**牌價自動更新**：Mac 匯出時每天最多讀一次 Anthropic 官方定價頁（[pricing.md](https://platform.claude.com/docs/en/about-claude/pricing.md)），
+解析模型價格表（輸入、5 分鐘與 1 小時快取寫入、快取讀取、輸出），存在 `~/.claude/token-usage/api-prices.json`；小工具會寫「API 牌價 11/28 更新」。
+Haiku 5.5 提示超過 10 萬 token 的請求依官方規則用較高的價格。讀不到（離線、頁面改版）時沿用上次成功的價格，失敗後一小時才再試；
+從沒成功過就用 `mac/export_usage.py` 內建的 `PRICES`，小工具寫「內建 API 牌價」。不想連網可設環境變數 `USAGE_WIDGET_PRICE_FETCH=0`。
+未計入：Fast mode、Batch、US-only 推論的加價或折扣；各月份（帳本）不分 Haiku 長提示。
 
 ### 鎖定畫面
 

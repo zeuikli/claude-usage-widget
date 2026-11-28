@@ -3,3 +3,5 @@ tools/preview/w.js
 tools/preview/claude-usage.json
 *.log
 __pycache__/
+mac/api-prices.json
+mac/api-prices.json.tmp

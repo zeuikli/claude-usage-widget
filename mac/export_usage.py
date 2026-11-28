@@ -20,13 +20,86 @@ seen = set()
 # Extra detail for the widget, last 30 days only.
 start30 = (now - datetime.timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
 home_prefix = os.path.expanduser("~").replace("/", "-")
-# API list prices per million tokens (input, output) and cache-read multiplier, from the claude-api skill
-# (2026-11-03). Cache writes: 1.25x input for the 5-minute TTL, 2x for the 1-hour TTL.
+# Built-in fallback: API list prices per million tokens (input, output) and cache-read multiplier, from the
+# claude-api skill (2026-11-03). Cache writes: 1.25x input for the 5-minute TTL, 2x for the 1-hour TTL.
+# The prices actually used come from Anthropic's pricing page (see load_prices below) when it can be read.
 PRICES = {"claude-fable-5-2": (8, 40, 0.025), "claude-mythos-5-2": (8, 40, 0.025), "claude-fable-5-1": (10, 50, 0.025), "claude-fable-5": (10, 50, 0.1),
           "claude-opus-5-5": (4, 20, 0.05), "claude-opus-5": (5, 25, 0.1), "claude-opus-4-8": (5, 25, 0.1),
           "claude-opus-4-7": (5, 25, 0.1), "claude-opus-4-6": (5, 25, 0.1), "claude-sonnet-5-5": (2, 10, 0.05),
           "claude-sonnet-5": (2, 10, 0.1), "claude-sonnet-4-6": (3, 15, 0.1), "claude-haiku-5-5": (0.1, 0.5, 0.1),
           "claude-haiku-4-5": (1, 5, 0.1)}
+PRICE_URL = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+PRICE_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "api-prices.json")
+
+
+def parse_prices(md):
+    """The model table on the pricing page: model, input, 5m cache write, 1h cache write, cache hit, output ($/MTok).
+    Returns ({model id: [input, write 5m, write 1h, cache hit, output]}, {model id: long-prompt prices}, threshold)."""
+    part = md.split("## Model pricing", 1)
+    if len(part) < 2:
+        return {}, {}, None
+    base, long_, threshold = {}, {}, None
+    for line in part[1].split("\n## ", 1)[0].splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        name = re.match(r"Claude ([A-Za-z]+) (\d+(?:\.\d+)?)\b", cells[0]) if len(cells) == 6 else None
+        if not name:
+            continue
+        vals = [re.search(r"\$([\d.,]+)\s*/\s*MTok", c) for c in cells[1:]]
+        if not all(vals):
+            continue
+        inp, w5, w1, hit, outp = (float(v.group(1).replace(",", "")) for v in vals)
+        if not (0 < hit <= inp <= w5 <= w1 and inp <= outp):
+            continue
+        mid = "claude-%s-%s" % (name.group(1).lower(), name.group(2).replace(".", "-"))
+        over = re.search(r"prompts over ([\d,]+) tokens", cells[0])
+        if over:
+            long_[mid], threshold = [inp, w5, w1, hit, outp], int(over.group(1).replace(",", ""))
+        else:
+            base[mid] = [inp, w5, w1, hit, outp]
+    return base, long_, threshold
+
+
+def load_prices():
+    """Prices per model as [input, write 5m, write 1h, cache hit, output]. The pricing page is read at most once a
+    day (once an hour after a failure) and kept in api-prices.json; the built-in table fills in models it lacks."""
+    try:
+        with open(PRICE_CACHE) as f:
+            cache = json.load(f)
+    except (OSError, ValueError):
+        cache = {}
+    def age(key):
+        try:
+            return (now - datetime.datetime.fromisoformat(cache[key])).total_seconds()
+        except (KeyError, TypeError, ValueError):
+            return float("inf")
+    if os.environ.get("USAGE_WIDGET_PRICE_FETCH", "1") != "0" and age("fetched") > 86400 and age("attempted") > 3600:
+        import urllib.request
+        cache["attempted"] = now.isoformat(timespec="seconds")
+        try:
+            req = urllib.request.Request(PRICE_URL, headers={"User-Agent": "claude-usage-widget"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                base, long_, threshold = parse_prices(r.read().decode("utf-8", "replace"))
+            if len(base) >= 5:
+                cache.update(fetched=cache["attempted"], source=PRICE_URL, prices=base, long=long_,
+                             long_threshold=threshold, error=None)
+            else:
+                cache["error"] = "the pricing table could not be read (%d models)" % len(base)
+        except Exception as e:  # offline, timeout, page moved: keep the last good prices
+            cache["error"] = str(e)[:200]
+        try:
+            with open(PRICE_CACHE + ".tmp", "w") as f:
+                json.dump(cache, f, indent=1)
+            os.replace(PRICE_CACHE + ".tmp", PRICE_CACHE)
+        except OSError:
+            pass
+    prices = {k: [i, i * 1.25, i * 2, i * r, o] for k, (i, o, r) in PRICES.items()}
+    prices.update(cache.get("prices") or {})
+    meta = {"source": "official" if cache.get("prices") else "builtin", "fetched": cache.get("fetched"),
+            "error": cache.get("error")}
+    return prices, cache.get("long") or {}, cache.get("long_threshold"), meta
+
+
+API_PRICES, LONG_PRICES, LONG_AT, PRICE_META = load_prices()
 hours = [[0, 0] for _ in range(24)]          # replies, output tokens by local hour
 weekdays = [0] * 7                           # replies by weekday (Mon=0)
 projects = defaultdict(lambda: [0, 0])       # tokens, replies
@@ -207,12 +280,15 @@ for path in glob.glob(root + "/**/*.jsonl", recursive=True):
                 apps[app] += v[0] + v[1]
                 if v[1] > longest[0]:
                     longest[:] = [v[1], t.date().isoformat()]
-                price = PRICES.get(m["model"])
+                price = API_PRICES.get(m["model"])
                 if price:
-                    pin, pout, read = price
+                    # Haiku 5.5 charges more for a request whose whole prompt (input + cache) is over the threshold.
+                    if m["model"] in LONG_PRICES and LONG_AT and v[0] + v[2] + v[3] > LONG_AT:
+                        price = LONG_PRICES[m["model"]]
+                    pin, pw5, pw1, phit, pout = price
                     w1h = int((u.get("cache_creation") or {}).get("ephemeral_1h_input_tokens") or 0)
                     w5m = max(0, v[2] - w1h)
-                    c = (v[0] * pin + v[1] * pout + w5m * pin * 1.25 + w1h * pin * 2 + v[3] * pin * read) / 1e6
+                    c = (v[0] * pin + v[1] * pout + w5m * pw5 + w1h * pw1 + v[3] * phit) / 1e6
                     cost[0] += c
                     cost_day[t.date().isoformat()] += c
                     cost_model[m["model"]] += c
@@ -468,18 +544,19 @@ if os.path.isdir(widget_dir):
     # Monthly API-price estimate from the CSV ledger (it outlives the transcripts). The ledger does not
     # split cache writes by TTL, so they are priced with the last 30 days' share of 1-hour writes.
     w_all = ins["write_1h"] + ins["write_5m"]
-    w_mult = 1.25 + 0.75 * (ins["write_1h"] / w_all if w_all else 0)
+    share_1h = ins["write_1h"] / w_all if w_all else 0
     months = defaultdict(lambda: [0.0, set()])
     for (day, model, _), r in rows.items():
-        price = PRICES.get(model)
+        price = API_PRICES.get(model)
         if price:
-            pin, pout, read = price
-            months[day[:7]][0] += (r[0] * pin + r[1] * pout + r[2] * pin * w_mult + r[3] * pin * read) / 1e6
+            pin, pw5, pw1, phit, pout = price
+            months[day[:7]][0] += (r[0] * pin + r[1] * pout + r[2] * (pw5 * (1 - share_1h) + pw1 * share_1h) + r[3] * phit) / 1e6
             months[day[:7]][1].add(day)
     summary["costs"] = {
         "daily": [[x["date"], round(cost_day.get(x["date"], 0), 2)] for x in daily],
         "models": [[k, round(v, 2)] for k, v in sorted(cost_model.items(), key=lambda kv: -kv[1])[:5]],
         "months": [[k, round(v[0], 2), len(v[1])] for k, v in sorted(months.items())[-6:]],
+        "prices": PRICE_META,
     }
     summary.update({
         "calendar": calendar, "best_streak": best,
