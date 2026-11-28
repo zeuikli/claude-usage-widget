@@ -3,7 +3,7 @@
 // icon-color: deep-brown; icon-glyph: chart-bar;
 // Claude token 用量小工具。資料來自 Mac 上 ~/.claude/token-usage/export_usage.py
 // 寫到 iCloud Drive 的 claude-usage.json（Mac 每 5 分鐘更新一次）。
-// 小工具參數（長按 → 編輯小工具 → Parameter）：留空＝用量、趣味、更多、狀態、寵物、額度。
+// 頁面：在「編輯小工具」的 Script 選「Claude Token 用量」或「Claude Token 用量・<頁名>」（趣味、更多、狀態、寵物、額度、日曆、洞察、速度、費用）。
 
 const fm = FileManager.iCloud();
 const path = fm.joinPath(fm.documentsDirectory(), "claude-usage.json");
@@ -26,7 +26,7 @@ const C = {
 };
 
 // ---------- 設定（存在 iCloud 的 Scriptable 資料夾，App 與小工具共用；在 App 裡執行腳本即可修改） ----------
-const VERSION = "2026.11.27.8";
+const VERSION = "2026.11.28";
 const REPO = "zeuikli/claude-usage-widget";
 const SETTINGS_PATH = fm.joinPath(fm.documentsDirectory(), "claude-usage-settings.json");
 const STATE_PATH = fm.joinPath(fm.documentsDirectory(), "claude-usage-state.json");
@@ -41,6 +41,7 @@ const DEFAULTS = {
   calendarReset: false,    // 每週額度重置時間寫進行事曆
   checkUpdates: true,      // 每 12 小時查一次 GitHub 有沒有新版
   refreshButton: true,     // 點標題列就地重畫（iOS 17 以上）
+  planUSD: 100,            // 費用頁比較用的訂閱月費（美元）
 };
 function readJSON(p) {
   try { return fm.fileExists(p) ? JSON.parse(fm.readString(p)) || {} : {}; } catch (e) { return {}; }
@@ -1296,6 +1297,62 @@ function speedPage(w, d, family) {
   });
 }
 
+// ---- 費用：照 API 牌價換算的費用（近 30 天，與訂閱月費比較） ----
+// costs: daily [[date, usd]] × 30, models [[model, usd]], months [[YYYY-MM, usd, days with data]]
+function costPage(w, d, family) {
+  const c = d.costs;
+  if (!c || !c.daily) return oldData(w, "Claude 費用", d);
+  const total = d.cost_usd || 0, plan = SETTINGS.planUSD || 100;
+  const times = total / plan >= 10 ? Math.round(total / plan) : Math.round(total / plan * 10) / 10;
+  const today = c.daily[c.daily.length - 1][1];
+  const month = (c.months || []).find(x => x[0] === c.daily[c.daily.length - 1][0].slice(0, 7));
+  const vals = c.daily.map(x => x[1]);
+  if (family === "small") {
+    header(w, d, "費用");
+    w.addSpacer(6);
+    label(w, "近 30 天 API 估價", 10, C.actual, "bold");
+    label(w, usd(total), 26, C.text, "round");
+    label(w, "是 $" + plan + " 方案的 " + times + " 倍", 9, C.dim);
+    w.addSpacer();
+    addImg(w, bars(vals, C.actual, 146, 22, vals.length - 1), 146, 22);
+    w.addSpacer(4);
+    label(w, "今天 " + usd(today) + "・依 API 牌價", 9, C.dim);
+    return;
+  }
+  const cw = contentWidth();
+  header(w, d, "Claude 費用（API 估價）");
+  w.addSpacer(family === "large" ? 10 : 6);
+  tiles(w, [
+    ["近 30 天", usd(total), "$" + plan + " 方案的 " + times + " 倍", C.actual],
+    ["今天", usd(today), month ? "本月 " + usd(month[1]) : "", C.actual],
+    ["快取省下", usd((d.cost_nocache_usd || 0) - total), "沒快取要 " + usd(d.cost_nocache_usd || 0), C.cache],
+  ], cw);
+  const n = c.daily.length, ticks = [[0, md(c.daily[0][0])], [Math.floor(n / 2), md(c.daily[Math.floor(n / 2)][0])], [n - 1, md(c.daily[n - 1][0])]];
+  if (family === "medium") {
+    w.addSpacer(6);
+    addImg(w, labeledBars(vals, C.actual, cw, 26, ticks), cw, 38);
+    w.addSpacer(3);
+    label(w, "依 API 牌價換算；訂閱方案每月 $" + plan + "，不按 token 計費", 9, C.dim);
+    w.addSpacer();
+    return;
+  }
+  w.addSpacer(12);
+  label(w, "每日估價（依 API 牌價；訂閱不按 token 計費）", 12, C.dim, "bold");
+  w.addSpacer(5);
+  addImg(w, labeledBars(vals, C.actual, cw, 32, ticks), cw, 44);
+  w.addSpacer(8);
+  label(w, "各模型（近 30 天）", 12, C.dim, "bold");
+  w.addSpacer(5);
+  const ml = (c.models || []).slice(0, 3).map(([m, v]) => [modelName(m), v]);
+  if (ml.length) addImg(w, rankBars(ml, cw, 19, 96, usd, 12), cw, 19 * ml.length);
+  w.addSpacer(8);
+  label(w, "各月份（有紀錄的天數）", 12, C.dim, "bold");
+  w.addSpacer(5);
+  const mo = (c.months || []).slice(-3).reverse().map(([k, v, days]) => [Number(k.slice(5)) + " 月・" + days + " 天", v]);
+  if (mo.length) addImg(w, rankBars(mo, cw, 19, 96, usd, 12), cw, 19 * mo.length);
+  w.addSpacer();
+}
+
 // ---------- 通知、提醒事項、行事曆、版本檢查（每次腳本執行時順便做；任何一項失敗都不影響小工具） ----------
 async function notify(id, title, body, opts) {
   const n = new Notification();
@@ -1478,6 +1535,8 @@ async function settingsPage(data) {
     toggle("refreshButton", "點標題列重新整理 ↻", "點小工具最上面那一列就地重畫，不必打開 Scriptable（iOS 17 以上）");
     action("主題：" + ({ default: "預設", warm: "暖橘漸層", night: "夜空" }[SETTINGS.theme] || "預設") + "（點一下切換）", null, () => {
       const order = ["default", "warm", "night"]; SETTINGS.theme = order[(order.indexOf(SETTINGS.theme) + 1) % order.length]; save(); });
+    action("費用頁比較的方案：$" + SETTINGS.planUSD + "／月（點一下切換 20／100／200）", "Pro $20、Max $100、Max $200", () => {
+      const order = [20, 100, 200]; SETTINGS.planUSD = order[(order.indexOf(SETTINGS.planUSD) + 1) % order.length]; save(); });
     header("提醒事項與行事曆");
     toggle("weeklyReminder", "每週額度用到 " + SETTINGS.highAt + "% 時建提醒事項", "第一次會詢問提醒事項權限");
     toggle("calendarReset", "把每週額度重置時間寫進行事曆", "第一次會詢問行事曆權限");
@@ -1495,7 +1554,7 @@ async function settingsPage(data) {
 }
 
 // ---------- 主程式 ----------
-const PAGES = [["用量", usagePage], ["趣味", funPage], ["更多", morePage], ["狀態", statusPage], ["寵物", petPage], ["額度", limitsPage], ["日曆", calendarPage], ["洞察", insightPage], ["速度", speedPage]];
+const PAGES = [["用量", usagePage], ["趣味", funPage], ["更多", morePage], ["狀態", statusPage], ["寵物", petPage], ["額度", limitsPage], ["日曆", calendarPage], ["洞察", insightPage], ["速度", speedPage], ["費用", costPage]];
 // Page copies made by the Mac are named "Claude Token 用量・<頁名>", so they pick their page from their own name
 // and the Parameter field can stay empty. A typed Parameter still wins.
 const MAIN_SCRIPT = "Claude Token 用量";
@@ -1506,6 +1565,7 @@ function pageFromName() {
 }
 function pickPage(param) {
   const p = String(param || "").replace(/\s+/g, "").toLowerCase();
+  if (p.includes("費用") || p.includes("cost")) return costPage;
   if (p.includes("速度") || p.includes("speed")) return speedPage;
   if (p.includes("洞察") || p.includes("insight")) return insightPage;
   if (p.includes("日曆") || p.includes("calendar")) return calendarPage;

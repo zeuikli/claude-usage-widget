@@ -32,6 +32,8 @@ weekdays = [0] * 7                           # replies by weekday (Mon=0)
 projects = defaultdict(lambda: [0, 0])       # tokens, replies
 apps = defaultdict(int)                      # actual tokens by app
 cost = [0.0, 0.0]                            # API-price estimate with cache, and if every cached token were plain input
+cost_day = defaultdict(float)                # API-price estimate per local day and per model (last 30 days)
+cost_model = defaultdict(float)
 unpriced = set()
 longest = [0, ""]
 tools = defaultdict(int)                     # tool calls by friendly name
@@ -210,7 +212,10 @@ for path in glob.glob(root + "/**/*.jsonl", recursive=True):
                     pin, pout, read = price
                     w1h = int((u.get("cache_creation") or {}).get("ephemeral_1h_input_tokens") or 0)
                     w5m = max(0, v[2] - w1h)
-                    cost[0] += (v[0] * pin + v[1] * pout + w5m * pin * 1.25 + w1h * pin * 2 + v[3] * pin * read) / 1e6
+                    c = (v[0] * pin + v[1] * pout + w5m * pin * 1.25 + w1h * pin * 2 + v[3] * pin * read) / 1e6
+                    cost[0] += c
+                    cost_day[t.date().isoformat()] += c
+                    cost_model[m["model"]] += c
                     cost[1] += ((v[0] + v[2] + v[3]) * pin + v[1] * pout) / 1e6
                 else:
                     unpriced.add(m["model"])
@@ -414,7 +419,7 @@ if os.path.isdir(widget_dir):
             except OSError:
                 pass
         if main_code:
-            for page in ("趣味", "更多", "狀態", "寵物", "額度", "日曆", "洞察", "速度"):
+            for page in ("趣味", "更多", "狀態", "寵物", "額度", "日曆", "洞察", "速度", "費用"):
                 copy = os.path.join(widget_dir, "Claude Token 用量・%s.js" % page)
                 try:
                     with open(copy, encoding="utf-8") as f:
@@ -460,6 +465,22 @@ if os.path.isdir(widget_dir):
         cur = datetime.date.fromisoformat(day)
         run = run + 1 if prev and (cur - prev).days == 1 else 1
         best, prev = max(best, run), cur
+    # Monthly API-price estimate from the CSV ledger (it outlives the transcripts). The ledger does not
+    # split cache writes by TTL, so they are priced with the last 30 days' share of 1-hour writes.
+    w_all = ins["write_1h"] + ins["write_5m"]
+    w_mult = 1.25 + 0.75 * (ins["write_1h"] / w_all if w_all else 0)
+    months = defaultdict(lambda: [0.0, set()])
+    for (day, model, _), r in rows.items():
+        price = PRICES.get(model)
+        if price:
+            pin, pout, read = price
+            months[day[:7]][0] += (r[0] * pin + r[1] * pout + r[2] * pin * w_mult + r[3] * pin * read) / 1e6
+            months[day[:7]][1].add(day)
+    summary["costs"] = {
+        "daily": [[x["date"], round(cost_day.get(x["date"], 0), 2)] for x in daily],
+        "models": [[k, round(v, 2)] for k, v in sorted(cost_model.items(), key=lambda kv: -kv[1])[:5]],
+        "months": [[k, round(v[0], 2), len(v[1])] for k, v in sorted(months.items())[-6:]],
+    }
     summary.update({
         "calendar": calendar, "best_streak": best,
         "streak": streak, "active_days": sum(1 for x in daily if x["actual"] or x["cache"]),
